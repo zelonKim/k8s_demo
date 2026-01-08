@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  without_dumb_init:
+    build:
+      context: .
+      dockerfile: Dockerfile.without
+    container_name: without_dumb_init
+    stdin_open: true
+    tty: true
+
+  with_dumb_init:
+    build:
+      context: .
+      dockerfile: Dockerfile.with
+    container_name: with_dumb_init
+    stdin_open: true
+    tty: true
