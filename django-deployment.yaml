@@ -19,24 +19,24 @@ spec:
             - containerPort: 8000
           imagePullPolicy: Always
 
-          readinessProbe: # 애플리케이션이 지금 요청을 받을 준비가 되었는지 헬스 체크함. (트래픽 제어 목적)
-            httpGet: # 헬스 체크를 위해 해당 경로와 포트로 GET 요청을 보내봄.
-              path: /readiness
-              port: 8000
-            initialDelaySeconds: 5 # 애플리케이션의 초기 기동을 고려해, 5초 후 헬스 체크를 시작하도록 함.
-            periodSeconds: 10 # 10초 주기로 헬스 체크를 수행하도록 함.
-            timeoutSeconds: 5 # 5초 이내에 응답이 없으면 실패로 간주함.
-            successThreshold: 1 # 1번 응답이 성공하면, 준비된 상태로 간주함.
-            failureThreshold: 3 # 3번 연속 실패 시, 준비되지 않은 상태로 간주함.
+          # readinessProbe: # 애플리케이션이 지금 요청을 받을 준비가 되었는지 헬스 체크함. (트래픽 제어 목적)
+          #   httpGet: # 헬스 체크를 위해 해당 경로와 포트로 GET 요청을 보내봄.
+          #     path: /readiness
+          #     port: 8000
+          #   initialDelaySeconds: 5 # 애플리케이션의 초기 기동을 고려해, 5초 후 헬스 체크를 시작하도록 함.
+          #   periodSeconds: 10 # 10초 주기로 헬스 체크를 수행하도록 함.
+          #   timeoutSeconds: 5 # 5초 이내에 응답이 없으면 실패로 간주함.
+          #   successThreshold: 1 # 1번 응답이 성공하면, 준비된 상태로 간주함.
+          #   failureThreshold: 3 # 3번 연속 실패 시, 준비되지 않은 상태로 간주함.
 
-          livenessProbe: # 애플리케이션이 지금 살아있는지 헬스 체크함. (자동 복구 목적)
-            httpGet:
-              path: /liveness
-              port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 3
+          # livenessProbe: # 애플리케이션이 지금 살아있는지 헬스 체크함. (자동 복구 목적)
+          #   httpGet:
+          #     path: /liveness
+          #     port: 8000
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 30
+          #   timeoutSeconds: 10
+          #   failureThreshold: 3
 
 ---
 apiVersion: v1
@@ -52,6 +52,8 @@ spec:
       protocol: TCP
       port: 80
       targetPort: 8000
+
+
 
 ---
 apiVersion: apps/v1
@@ -96,103 +98,130 @@ spec:
       port: 5432
   clusterIP: None
 
----
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: django-ds
-  labels:
-    app: log-collector
-spec:
-  selector:
-    matchLabels:
-      app: log-collector
-  template:
-    metadata:
-      labels:
-        app: log-collector
-    spec:
-      containers:
-        - name: log-collector
-          image: fluent/fluent-bit:latest
-          volumeMounts:
-            - name: varlog
-              mountPath: /var/log
-              readOnly: true
-            - name: config
-              mountPath: /fluent-bit/etc
-      volumes:
-        - name: varlog
-          hostPath:
-            path: /var/log
-        - name: config
-          configMap:
-            name: fluent-bit-config
 
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: fluent-bit-config
-data:
-  fluent-bit.conf: |
-    [SERVICE]
-        Flush        1
-        Log_Level    info
 
-    [INPUT]
-        Name tail
-        Path /var/log/*.log
 
-    [OUTPUT]
-        Name stdout
-        Match *
 
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: db-backup
-spec:
-  schedule: "0 17 * * *" # 매일 오후 5시마다 수행
-  timeZone: Asia/Seoul
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
-  jobTemplate:
-    spec:
-      backoffLimit: 3
-      template:
-        spec:
-          restartPolicy: OnFailure
-          containers:
-            - name: backup
-              image: postgres:latest
-              env:
-                - name: PGPASSWORD
-                  value: password1234
-              command: ["sh", "-c"]
-              args:
-                - >
-                  pg_dump -h db-svc -p 5432 -U postgres postgres
-                  > /tmp/postgres-backup-$(date +%Y%m%d_%H%M%S).sql
 
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler # 트래픽 폭주 발생 시, 팟 개수를 자동으로 증가시키거나 감소시켜줌.
-metadata:
-  name: django-app-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: django-app
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 75 # 평균 CPU 사용률이 75%를 넘을때 자동으로 팟 개수를 증가시킴.
+
+################################
+
+
+
+
+# ---
+# apiVersion: apps/v1
+# kind: DaemonSet
+# metadata:
+#   name: django-ds
+#   labels:
+#     app: log-collector
+# spec:
+#   selector:
+#     matchLabels:
+#       app: log-collector
+#   template:
+#     metadata:
+#       labels:
+#         app: log-collector
+#     spec:
+#       containers:
+#         - name: log-collector
+#           image: fluent/fluent-bit:latest
+#           volumeMounts:
+#             - name: varlog
+#               mountPath: /var/log
+#               readOnly: true
+#             - name: config
+#               mountPath: /fluent-bit/etc
+#       volumes:
+#         - name: varlog
+#           hostPath:
+#             path: /var/log
+#         - name: config
+#           configMap:
+#             name: fluent-bit-config
+
+# ---
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: fluent-bit-config
+# data:
+#   fluent-bit.conf: |
+#     [SERVICE]
+#         Flush        1
+#         Log_Level    info
+
+#     [INPUT]
+#         Name tail
+#         Path /var/log/*.log
+
+#     [OUTPUT]
+#         Name stdout
+#         Match *
+
+
+
+
+################################
+
+
+
+# ---
+# apiVersion: batch/v1
+# kind: CronJob
+# metadata:
+#   name: db-backup
+# spec:
+#   schedule: "0 17 * * *" # 매일 오후 5시마다 수행
+#   timeZone: Asia/Seoul
+#   successfulJobsHistoryLimit: 3
+#   failedJobsHistoryLimit: 1
+#   jobTemplate:
+#     spec:
+#       backoffLimit: 3
+#       template:
+#         spec:
+#           restartPolicy: OnFailure
+#           containers:
+#             - name: backup
+#               image: postgres:latest
+#               env:
+#                 - name: PGPASSWORD
+#                   value: password1234
+#               command: ["sh", "-c"]
+#               args:
+#                 - >
+#                   pg_dump -h db-svc -p 5432 -U postgres postgres
+#                   > /tmp/postgres-backup-$(date +%Y%m%d_%H%M%S).sql
+
+
+
+
+
+################################
+
+
+
+
+# ---
+# apiVersion: autoscaling/v2
+# kind: HorizontalPodAutoscaler # 트래픽 폭주 발생 시, 팟 개수를 자동으로 증가시키거나 감소시켜줌.
+# metadata:
+#   name: django-app-hpa
+# spec:
+#   scaleTargetRef:
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     name: django-app
+#   minReplicas: 2
+#   maxReplicas: 10
+#   metrics:
+#     - type: Resource
+#       resource:
+#         name: cpu
+#         target:
+#           type: Utilization
+#           averageUtilization: 75 # 평균 CPU 사용률이 75%를 넘을때 자동으로 팟 개수를 증가시킴.
 
